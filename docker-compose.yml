@@ -1,0 +1,40 @@
+services:
+  # Redis Service
+  redis:
+    image: redis:7-alpine
+    container_name: restaurant_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - restaurant_network
+
+  # Optional: Redis Commander (Web UI for Redis) - Commented out due to image pull issues
+  # redis-commander:
+  #   image: rediscommander/redis-commander:latest
+  #   container_name: restaurant_redis_commander
+  #   environment:
+  #     - REDIS_HOSTS=local:redis:6379
+  #   ports:
+  #     - "8081:8081"
+  #   depends_on:
+  #     - redis
+  #   networks:
+  #     - restaurant_network
+  #   restart: unless-stopped
+
+volumes:
+  redis_data:
+    driver: local
+
+networks:
+  restaurant_network:
+    driver: bridge
