@@ -244,6 +244,12 @@ GET http://localhost:8000/api/test-redis
 
 This shows all cached keys and their TTL values.
 
+Access the Redis monitor command:
+
+```bash
+php artisan redis:monitor --watch
+```
+
 ---
 
 ## MinIO Configuration
