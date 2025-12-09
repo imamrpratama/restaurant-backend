@@ -14,7 +14,8 @@ use Illuminate\Support\Facades\Redis;
 Route::middleware(['throttle:10,1'])->group(function () {
     Route::post('/register', [AuthController::class, 'register']);
     Route::post('/login', [AuthController::class, 'login']);
-    Route::post('/google-signin', [AuthController::class, 'googleSignIn']);
+    Route::post('/google-login', [AuthController::class, 'googleLogin']);
+    Route::post('/check-email', [AuthController::class, 'checkEmailExists']);
 });
 
 // 2FA verification routes (requires temp token) - FIXED

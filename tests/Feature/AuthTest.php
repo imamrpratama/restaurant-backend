@@ -14,13 +14,13 @@ class AuthTest extends TestCase
     {
         $response = $this->postJson('/api/register', [
             'name' => 'Test User',
-            'email' => 'test@example.com',
-            'password' => 'password123',
-            'password_confirmation' => 'password123',
+            'email' => 'figma@gmail.com',
+            'password' => 'Abcd1234',
+            'password_confirmation' => 'Abcd1234',
         ]);
 
         $response->assertStatus(201)
-            ->assertJsonStructure(['message', 'user']);
+            ->assertJsonStructure(['user', 'token', 'requires_2fa']);
 
         $this->assertDatabaseHas('users', [
             'email' => 'test@example.com',
@@ -30,31 +30,31 @@ class AuthTest extends TestCase
     public function test_user_can_login()
     {
         $user = User::factory()->create([
-            'email' => 'test@example.com',
-            'password' => bcrypt('password123'),
+            'email' => 'figma@gmail.com',
+            'password' => 'Abcd1234',
         ]);
 
         $response = $this->postJson('/api/login', [
-            'email' => 'test@example.com',
-            'password' => 'password123',
+            'email' => 'figma@gmail.com',
+            'password' => 'Abcd1234',
         ]);
 
         $response->assertStatus(200)
-            ->assertJsonStructure(['message', 'token', 'user']);
+            ->assertJsonStructure(['token', 'user', 'requires_2fa']);
     }
 
     public function test_login_requires_2fa_when_enabled()
     {
         $user = User::factory()->create([
-            'email' => 'test@example.com',
-            'password' => bcrypt('password123'),
+            'email' => 'figma@gmail.com',
+            'password' => bcrypt('Abcd1234'),
             'two_factor_enabled' => true,
             'two_factor_secret' => encrypt('test-secret'),
         ]);
 
         $response = $this->postJson('/api/login', [
-            'email' => 'test@example.com',
-            'password' => 'password123',
+            'email' => 'figma@gmail.com',
+            'password' => 'Abcd1234',
         ]);
 
         $response->assertStatus(200)

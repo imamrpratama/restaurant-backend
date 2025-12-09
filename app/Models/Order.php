@@ -33,36 +33,63 @@ class Order extends Model
             if ($order->isDirty('status')) {
                 $order->updateTableStatus();
             }
+            // Refresh kitchen display cache
+            $kitchenOrders = Order::with(['items.menu', 'table', 'user'])
+                ->whereIn('status', ['pending', 'processing'])
+                ->latest()
+                ->get();
+            \Cache::put('kitchen_display:all', $kitchenOrders, 360);
+
+            // Refresh orders cache
+            $allOrders = Order::all();
+            \Cache::put('order:all', $allOrders, 360);
         });
 
         // When order is created
         static::created(function ($order) {
             $order->updateTableStatus();
+            // Refresh kitchen display cache
+            $kitchenOrders = Order::with(['items.menu', 'table', 'user'])
+                ->whereIn('status', ['pending', 'processing'])
+                ->latest()
+                ->get();
+            \Cache::put('kitchen_display:all', $kitchenOrders, 360);
+
+            // Refresh orders cache
+            $allOrders = Order::all();
+            \Cache::put('order:all', $allOrders, 360);
         });
     }
 
     // ADD: Method to update table status based on orders
     public function updateTableStatus()
     {
-        if (!  $this->table) {
+        // Check if table_id exists
+        if (!$this->table_id) {
+            return;
+        }
+
+        // Explicitly load the table relationship to ensure it's a model instance
+        $table = Table::find($this->table_id);
+        if (!$table) {
             return;
         }
 
         // Check if table has any active orders (pending or processing)
-        $hasActiveOrders = $this->table->orders()
+        $hasActiveOrders = $table->orders()
             ->whereIn('status', ['pending', 'processing'])
             ->exists();
 
         // Update table status
         $newStatus = $hasActiveOrders ?  'occupied' : 'available';
 
-        if ($this->table->status !== $newStatus) {
-            $this->table->update(['status' => $newStatus]);
+        if ($table->status !== $newStatus) {
+            $table->update(['status' => $newStatus]);
 
             \Log::info('Table status updated', [
-                'table_id' => $this->table->id,
-                'table_number' => $this->table->table_number,
-                'old_status' => $this->table->status,
+                'table_id' => $table->id,
+                'table_number' => $table->table_number,
+                'old_status' => $table->status,
                 'new_status' => $newStatus,
                 'order_id' => $this->id,
                 'order_status' => $this->status

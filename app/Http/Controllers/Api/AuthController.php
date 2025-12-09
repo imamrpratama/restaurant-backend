@@ -91,6 +91,40 @@ class AuthController extends Controller
     }
 
     /**
+     * Check if email exists and return login methods available
+     */
+    public function checkEmailExists(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email',
+        ]);
+
+        $user = User::where('email', $request->email)->first();
+
+        if (!$user) {
+            return response()->json([
+                'exists' => false,
+                'message' => 'Email not found. You can create a new account.',
+            ]);
+        }
+
+        // User exists, determine available login methods
+        $loginMethods = [];
+        if ($user->google_id) {
+            $loginMethods[] = 'Google';
+        }
+        if ($user->password) {
+            $loginMethods[] = 'Email & Password';
+        }
+
+        return response()->json([
+            'exists' => true,
+            'message' => 'This email already has an account.',
+            'login_methods' => $loginMethods,
+        ]);
+    }
+
+    /**
      * Verify 2FA OTP code
      */
     public function verify2FA(Request $request)
@@ -326,6 +360,120 @@ class AuthController extends Controller
         return response()->json([
             'message' => 'Google Sign-In not fully implemented',
         ], 501);
+    }
+
+    /**
+     * Login or register with Google
+     * Implements Option 1: Link to existing account if email matches
+     */
+    public function googleLogin(Request $request)
+    {
+        $request->validate([
+            'id_token' => 'required|string',
+        ]);
+
+        try {
+            // Verify Google ID token
+            $googleUser = $this->verifyGoogleToken($request->id_token);
+
+            if (!$googleUser) {
+                return response()->json([
+                    'message' => 'Invalid Google token',
+                ], 401);
+            }
+
+            // Extract user info from Google token
+            $email = $googleUser['email'];
+            $name = $googleUser['name'] ?? 'User';
+            $googleId = $googleUser['sub'];
+            $avatar = $googleUser['picture'] ?? null;
+
+            // Check if user exists by email
+            $user = User::where('email', $email)->first();
+
+            if ($user) {
+                // User exists - link Google account (Option 1)
+                $user->update([
+                    'google_id' => $googleId,
+                    'avatar' => $avatar ?? $user->avatar,
+                ]);
+
+                Log::info('Google account linked to existing user', [
+                    'user_id' => $user->id,
+                    'email' => $email,
+                    'google_id' => $googleId,
+                ]);
+            } else {
+                // Create new user
+                $user = User::create([
+                    'name' => $name,
+                    'email' => $email,
+                    'google_id' => $googleId,
+                    'avatar' => $avatar,
+                    'password' => Hash::make(bin2hex(random_bytes(16))), // Random password
+                ]);
+
+                Log::info('New user created via Google', [
+                    'user_id' => $user->id,
+                    'email' => $email,
+                    'google_id' => $googleId,
+                ]);
+            }
+
+            // Check if 2FA is enabled
+            if ($user->two_factor_enabled) {
+                $tempToken = $user->createToken('2fa_temp', ['2fa:verify'], now()->addMinutes(5))->plainTextToken;
+
+                return response()->json([
+                    'message' => '2FA verification required',
+                    'requires_2fa' => true,
+                    'temp_token' => $tempToken,
+                ]);
+            }
+
+            // Create full access token
+            $token = $user->createToken('auth_token')->plainTextToken;
+
+            return response()->json([
+                'user' => $user,
+                'token' => $token,
+                'requires_2fa' => false,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Google login error', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => 'Google login failed',
+                'error' => $e->getMessage(),
+            ], 401);
+        }
+    }
+
+    /**
+     * Verify Google ID token
+     */
+    private function verifyGoogleToken($idToken)
+    {
+        try {
+            // Get Google's public keys
+            $client = new \GuzzleHttp\Client();
+            $response = $client->get('https://www.googleapis.com/oauth2/v3/tokeninfo?id_token=' . $idToken);
+            $data = json_decode($response->getBody(), true);
+
+            if ($data && isset($data['aud']) && isset($data['email'])) {
+                return $data;
+            }
+
+            return null;
+        } catch (\Exception $e) {
+            Log::error('Google token verification failed', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return null;
+        }
     }
 
     /**

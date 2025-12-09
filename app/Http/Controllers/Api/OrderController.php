@@ -42,26 +42,39 @@ class OrderController extends Controller
     {
         $search = $request->query('search');
 
-        $query = Order::with(['items.menu', 'table', 'user'])
-            ->whereIn('status', ['pending', 'processing'])
-            ->orderBy('created_at', 'asc');
+        // Try to get from cache first, if not found or has search, query from database
+        if (!$search && Cache::has('kitchen_display:all')) {
+            $orders = Cache::get('kitchen_display:all');
+            Log::info('Kitchen display orders fetched from cache', [
+                'count' => $orders->count(),
+            ]);
+        } else {
+            $query = Order::with(['items.menu', 'table', 'user'])
+                ->whereIn('status', ['pending', 'processing'])
+                ->orderBy('created_at', 'asc');
 
-        // Search by order number or table number
-        if ($search) {
-            $query->where(function ($q) use ($search) {
-                $q->where('order_number', 'like', "%{$search}%")
-                  ->orWhereHas('table', function ($tq) use ($search) {
-                      $tq->where('table_number', 'like', "%{$search}%");
-                  });
-            });
+            // Search by order number or table number
+            if ($search) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('order_number', 'like', "%{$search}%")
+                      ->orWhereHas('table', function ($tq) use ($search) {
+                          $tq->where('table_number', 'like', "%{$search}%");
+                      });
+                });
+            }
+
+            $orders = $query->get();
+
+            // Cache if no search
+            if (!$search) {
+                Cache::put('kitchen_display:all', $orders, 360);
+            }
+
+            Log::info('Kitchen display orders fetched from database', [
+                'count' => $orders->count(),
+                'search' => $search
+            ]);
         }
-
-        $orders = $query->get();
-
-        Log::info('Kitchen display orders fetched', [
-            'count' => $orders->count(),
-            'search' => $search
-        ]);
 
         return response()->json($orders);
     }
@@ -134,7 +147,7 @@ class OrderController extends Controller
                 'order_number' => $orderNumber
             ]);
 
-            return response()->json($order->load(['items. menu', 'table']), 201);
+            return response()->json($order->load(['items.menu', 'table']), 201);
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Failed to create order', ['error' => $e->getMessage()]);
