@@ -7,8 +7,14 @@ use App\Http\Controllers\Api\MenuController;
 use App\Http\Controllers\Api\TableController;
 use App\Http\Controllers\Api\OrderController;
 
+use App\Http\Controllers\Api\ImageController;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Redis;
+
+// Public routes (no auth required for images)
+Route::get('/images/{path}', [ImageController::class, 'serve'])
+    ->where('path', '.*')
+    ->name('image.serve');
 
 // Public routes
 Route::middleware(['throttle:10,1'])->group(function () {

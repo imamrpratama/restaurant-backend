@@ -53,12 +53,15 @@ class OrderController extends Controller
                 ->whereIn('status', ['pending', 'processing'])
                 ->orderBy('created_at', 'asc');
 
-            // Search by order number or table number
+            // Search by order number, table number, or menu item name
             if ($search) {
                 $query->where(function ($q) use ($search) {
                     $q->where('order_number', 'like', "%{$search}%")
                       ->orWhereHas('table', function ($tq) use ($search) {
                           $tq->where('table_number', 'like', "%{$search}%");
+                      })
+                      ->orWhereHas('items.menu', function ($mq) use ($search) {
+                          $mq->where('name', 'like', "%{$search}%");
                       });
                 });
             }
@@ -76,7 +79,8 @@ class OrderController extends Controller
             ]);
         }
 
-        return response()->json($orders);
+        // Convert to arrays to ensure items are included
+        return response()->json($orders->map(fn($order) => $order->toArray())->all());
     }
 
     /**
@@ -90,7 +94,7 @@ class OrderController extends Controller
             'table_id' => 'required|exists:tables,id',
             'items' => 'required|array|min:1',
             'items.*.menu_id' => 'required|exists:menus,id',
-            'items. *.quantity' => 'required|integer|min:1',
+            'items.*.quantity' => 'required|integer|min:1',
             'items.*.price' => 'required|numeric|min:0',
             'items.*.notes' => 'nullable|string',
             'notes' => 'nullable|string',

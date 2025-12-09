@@ -66,6 +66,7 @@ return [
             'secret' => env('MINIO_SECRET'),
             'region' => env('MINIO_REGION'),
             'bucket' => env('MINIO_BUCKET'),
+            'url' => env('MINIO_URL'),
             'endpoint' => env('MINIO_ENDPOINT'),
             'use_path_style_endpoint' => env('MINIO_USE_PATH_STYLE_ENDPOINT', true),
             'throw' => false,

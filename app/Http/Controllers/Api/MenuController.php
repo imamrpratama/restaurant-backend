@@ -25,7 +25,8 @@ class MenuController extends Controller
             return $query->get();
         });
 
-        return response()->json($menus);
+        // Convert to arrays to include appended attributes
+        return response()->json($menus->map(fn($menu) => $menu->toArray())->all());
     }
 
     public function store(Request $request)
@@ -55,12 +56,18 @@ class MenuController extends Controller
 
         Log::info('Menu created', ['menu_id' => $menu->id, 'data' => $data]);
 
-        return response()->json($menu->load('category'), 201);
+        // Clear cache
+        $this->clearMenuCache();
+
+        // Load relations and return with appended attributes
+        $menu->load('category');
+        return response()->json($menu->toArray(), 201);
     }
 
     public function show(Menu $menu)
     {
-        return response()->json($menu->load('category'));
+        $menu->load('category');
+        return response()->json($menu->toArray());
     }
 
     public function update(Request $request, Menu $menu)
@@ -129,7 +136,12 @@ class MenuController extends Controller
 
         \Log::info('Menu updated successfully', ['menu_id' => $menu->id]);
 
-        return response()->json($menu->load('category'));
+        // Clear cache
+        $this->clearMenuCache();
+
+        // Load relations and return with appended attributes
+        $menu->load('category');
+        return response()->json($menu->toArray());
     }
 
     public function destroy(Menu $menu)
